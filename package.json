@@ -1,0 +1,35 @@
+{
+  "name": "aivol",
+  "version": "1.0.0",
+  "description": "Projeto integrador para coleta de volumosos",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "start": "npx nodemon index.js"
+  },
+  "author": "Lucas de Lima Santana",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "js-priority-queue": "^0.1.5",
+    "mongodb": "^6.14.2",
+    "mongoose": "^8.12.1",
+    "multer": "^1.4.5-lts.1",
+    "nodemon": "^3.1.9",
+    "path": "^0.12.7",
+    "priorityqueuejs": "^2.0.0",
+    "supertest": "^7.0.0"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@babel/preset-env": "^7.26.9",
+    "@babel/register": "^7.25.9",
+    "babel-jest": "^29.7.0",
+    "enm": "^0.0.1-security",
+    "jest": "^29.7.0"
+  }
+}
