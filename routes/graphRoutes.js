@@ -1,15 +1,21 @@
 import express from 'express';
-import graphController from '../controllers/graphControllers.js';
+import GraphService from '../services/graphService.js';
 
-const graphRoutes = express.Router();
+const router = express.Router();
+const graphService = new GraphService();
 
-// Rota para adicionar um ponto de coleta
-graphRoutes.post('/add-point', graphController.addPoint);
+// Rota para adicionar aresta
+router.post('/add-edge', async (req, res) => {
+    const { source, destination, distance } = req.body;
+    await graphService.addEdge(source, destination, distance);
+    res.status(201).send('Aresta adicionada com sucesso');
+});
 
-// Rota para adicionar uma rota entre pontos de coleta
-graphRoutes.post('/add-route', graphController.addRoute);
+// Rota para encontrar o menor caminho
+router.get('/shortest-path', async (req, res) => {
+    const { start, end } = req.query;
+    const result = await graphService.findShortestPath(start, end);
+    res.status(200).json(result);
+});
 
-// Rota para encontrar a melhor rota entre dois pontos
-graphRoutes.get('/find-route', graphController.findRoute);
-
-export default graphRoutes;
+export default router;

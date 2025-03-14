@@ -21,7 +21,7 @@ app.use(express.json());
 app.use('/', collectionPointRoutes);
 app.use('/graph', graphRoutes);
 
-/* ----------\/ INICIANDO SERVIDOR \/---------- */
+/* ----------\/ INICIANDO SERVIDOR \/---------- 
 const port = 8080;
 //const myServer = ip.address();
 const renderPort = '0.0.0.0';
@@ -30,6 +30,6 @@ const renderPort = '0.0.0.0';
 app.listen(port, (error) => {
     if(error) {console.log(error); }
     console.log(`API rodando em http://localhost:${port}.`);
-});
+});*/
 
 export default app;

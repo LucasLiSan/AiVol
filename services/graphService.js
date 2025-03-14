@@ -1,63 +1,81 @@
-import PriorityQueue from 'priorityqueuejs';
-
-class Graph {
+// graphService.js
+class GraphService {
     constructor() {
-        this.nodes = new Map();
+        this.adjacencyList = new Map();
     }
 
-    addNode(node) {
-        if (!this.nodes.has(node)) {
-            this.nodes.set(node, []);
+    async addNode(node) {
+        if (!this.adjacencyList.has(node)) {
+            this.adjacencyList.set(node, []);
         }
     }
 
-    addEdge(origin, destination, weight) {
-        this.addNode(origin);
-        this.addNode(destination);
-        this.nodes.get(origin).push({ node: destination, weight });
-        this.nodes.get(destination).push({ node: origin, weight });
+    async addEdge(source, destination, distance) {
+        if (!this.adjacencyList.has(source)) {
+            this.adjacencyList.set(source, []);
+        }
+        if (!this.adjacencyList.has(destination)) {
+            this.adjacencyList.set(destination, []);
+        }
+        this.adjacencyList.get(source).push({ node: destination, distance });
+        this.adjacencyList.get(destination).push({ node: source, distance }); // Se for um grafo não-direcionado
     }
 
-    findShortestPath(start, end) {
+    async findShortestPath(start, end) {
         const distances = new Map();
         const previousNodes = new Map();
-        const priorityQueue = new PriorityQueue((a, b) => a.priority - b.priority);
-
-        this.nodes.forEach((_, node) => {
+        const visited = new Set();
+        const priorityQueue = new Map();
+    
+        // Initialize distances and priority queue
+        for (const node of this.adjacencyList.keys()) {
             distances.set(node, Infinity);
             previousNodes.set(node, null);
-        });
-
+            priorityQueue.set(node, Infinity);
+        }
+    
         distances.set(start, 0);
-        priorityQueue.enq({ node: start, priority: 0 });
+        priorityQueue.set(start, 0);
+    
+        while (priorityQueue.size > 0) {
+            const currentNode = [...priorityQueue.entries()].reduce((a, b) => a[1] < b[1] ? a : b)[0];
+            priorityQueue.delete(currentNode);
+    
+            if (currentNode === end) {
+                const path = [];
+                let current = end;
+    
+                while (current) {
+                    path.unshift(current);
+                    current = previousNodes.get(current);
+                }
 
-        while (!priorityQueue.isEmpty()) {
-            const { node: currentNode } = priorityQueue.deq();
-
-            if (currentNode === end) break;
-
-            const neighbors = this.nodes.get(currentNode);
+                if (path[0] === start) {
+                    return { path, distance: distances.get(end) };
+                } else {
+                    // No path was found
+                    return { path: [], distance: Infinity };
+                }
+            }
+    
+            visited.add(currentNode);
+    
+            const neighbors = this.adjacencyList.get(currentNode) || [];
             for (const neighbor of neighbors) {
-                const alt = distances.get(currentNode) + neighbor.weight;
-                if (alt < distances.get(neighbor.node)) {
-                    distances.set(neighbor.node, alt);
+                if (visited.has(neighbor.node)) continue;
+    
+                const newDistance = distances.get(currentNode) + neighbor.distance;
+    
+                if (newDistance < distances.get(neighbor.node)) {
+                    distances.set(neighbor.node, newDistance);
                     previousNodes.set(neighbor.node, currentNode);
-                    priorityQueue.enq({ node: neighbor.node, priority: alt });
+                    priorityQueue.set(neighbor.node, newDistance);
                 }
             }
         }
 
-        const path = [];
-        let currentNode = end;
-
-        while (currentNode) {
-            path.unshift(currentNode);
-            currentNode = previousNodes.get(currentNode);
-        }
-
-        if (path[0] !== start) return null;
-        return { path, distance: distances.get(end) };
+        return { path: [], distance: Infinity };
     }
 }
 
-export default Graph;
+export default GraphService;
