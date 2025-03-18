@@ -4,18 +4,29 @@ import GraphService from '../services/graphService.js';
 const router = express.Router();
 const graphService = new GraphService();
 
-// Rota para adicionar aresta
-router.post('/add-edge', async (req, res) => {
-    const { source, destination, distance } = req.body;
-    await graphService.addEdge(source, destination, distance);
-    res.status(201).send('Aresta adicionada com sucesso');
+// Carregar os pontos de coleta no grafo
+router.get('/load-points', async (req, res) => {
+  try {
+    await graphService.loadCollectionPoints();
+    res.status(200).send('Pontos de coleta carregados no grafo com sucesso.');
+  } catch (error) {
+    res.status(500).send('Erro ao carregar pontos de coleta: ' + error.message);
+  }
 });
 
-// Rota para encontrar o menor caminho
+// Encontrar a rota mais curta entre dois pontos
 router.get('/shortest-path', async (req, res) => {
-    const { start, end } = req.query;
-    const result = await graphService.findShortestPath(start, end);
-    res.status(200).json(result);
+    const { startId, endId } = req.query;
+    try {
+        const result = graphService.findShortestPath(startId, endId);
+        if (result) {
+        res.status(200).json(result); // Agora retorna a rota e a distância total
+        } else {
+        res.status(404).send('Caminho não encontrado.');
+        }
+    } catch (error) {
+        res.status(500).send('Erro ao calcular o caminho mais curto: ' + error.message);
+    }
 });
 
 export default router;

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "start": "npx nodemon index.js"
+    "start": "npx nodemon server.js"
   },
   "author": "Lucas de Lima Santana",
   "license": "ISC",

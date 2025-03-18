@@ -4,7 +4,7 @@ import bodyParser from "body-parser";
 import collectionPointRoutes from "./routes/collectionRoutes.js";
 import graphRoutes from "./routes/graphRoutes.js";
 
-mongoose.connect("mongodb://127.0.0.1:27017/api-aiVol");
+//mongoose.connect("mongodb://127.0.0.1:27017/api-aiVol");
 
 const app = express();
 

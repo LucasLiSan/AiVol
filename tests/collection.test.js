@@ -4,7 +4,7 @@ import app from "../index.js";
 
 beforeAll(async () => {
     if (mongoose.connection.readyState === 0) { // Verifica se já está conectado
-        await mongoose.connect("mongodb://127.0.0.1:27017/api-aiVolTest", { 
+        await mongoose.connect("mongodb://127.0.0.1:27017/api-aiVol", { 
             useNewUrlParser: true, 
             useUnifiedTopology: true 
         });
