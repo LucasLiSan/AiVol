@@ -1,5 +1,6 @@
 import express from 'express';
 import GraphService from '../services/graphService.js';
+import collectionPoint from '../models/collectionPoint.js';
 
 const router = express.Router();
 const graphService = new GraphService();
@@ -8,7 +9,13 @@ const graphService = new GraphService();
 router.get('/load-points', async (req, res) => {
   try {
     await graphService.loadCollectionPoints();
-    res.status(200).send('Pontos de coleta carregados no grafo com sucesso.');
+    const points = await collectionPoint.find({}, 'address');
+    const addresses = points.map(point => point.address);
+
+    res.status(200).json({
+      message: 'Pontos de coleta carregados no grafo com sucesso.',
+      addresses: addresses
+    });
   } catch (error) {
     res.status(500).send('Erro ao carregar pontos de coleta: ' + error.message);
   }
