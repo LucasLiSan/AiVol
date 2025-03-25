@@ -6,6 +6,7 @@ const collectionPointSchema = new mongoose.Schema ({
     longitude: Number,
     volume: Number,
     scheduledDate: Date,
+    collectedVolume: { type: Number, default: 0 }, // Volume já coletado
     materialType: String
 });
 

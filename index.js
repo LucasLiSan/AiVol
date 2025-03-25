@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import bodyParser from "body-parser";
 import collectionPointRoutes from "./routes/collectionRoutes.js";
 import graphRoutes from "./routes/graphRoutes.js";
+import truckCollectorRoutes from "./routes/truckCollectorsRoutes.js";
 
 //mongoose.connect("mongodb://127.0.0.1:27017/api-aiVol");
 
@@ -19,6 +20,7 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use('/', collectionPointRoutes);
+app.use('/', truckCollectorRoutes);
 app.use('/graph', graphRoutes);
 
 /* ----------\/ INICIANDO SERVIDOR \/---------- 
