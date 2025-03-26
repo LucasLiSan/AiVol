@@ -2,8 +2,9 @@ import mongoose from 'mongoose';
 import CollectionPoint from '../models/collectionPoint.js';
 
 class GraphService {
-  constructor() {
+  constructor(truckCapacity = 50) {
     this.graph = { vertices: {} };
+    this.truckCapacity = truckCapacity;
   }
 
   async loadCollectionPoints() {
@@ -12,7 +13,7 @@ class GraphService {
 
     points.forEach(point => {
       const vertex = point._id.toString();
-      this.addVertex(vertex, point.latitude, point.longitude);
+      this.addVertex(vertex, point.latitude, point.longitude, point.volume);
     });
 
     for (let i = 0; i < points.length; i++) {
@@ -34,8 +35,8 @@ class GraphService {
     }
   }
 
-  addVertex(vertex, lat, lon) {
-    this.graph.vertices[vertex] = { lat, lon, edges: {} };
+  addVertex(vertex, lat, lon, volume) {
+    this.graph.vertices[vertex] = { lat, lon, volume, edges: {} };
   }
 
   addEdge(vertex1, vertex2, distance) {
@@ -53,6 +54,54 @@ class GraphService {
               Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+  }
+
+  findOptimizedRoute(startVertex, dumpSite) {
+    let remainingPoints = Object.keys(this.graph.vertices);
+    let currentTruckLoad = 0;
+    let totalDistance = 0;
+    let route = [startVertex];
+
+    while (remainingPoints.length > 0) {
+      let nextStop = null;
+      let shortestDistance = Infinity;
+
+      for (let point of remainingPoints) {
+        if (this.graph.vertices[point].volume > 0) {
+          const result = this.findShortestPath(startVertex, point);
+          if (result && result.distance < shortestDistance) {
+            shortestDistance = result.distance;
+            nextStop = point;
+          }
+        }
+      }
+
+      if (!nextStop) break;
+
+      let availableVolume = this.graph.vertices[nextStop].volume;
+      let canCarry = Math.min(availableVolume, this.truckCapacity - currentTruckLoad);
+
+      this.graph.vertices[nextStop].volume -= canCarry;
+      currentTruckLoad += canCarry;
+      totalDistance += shortestDistance;
+      route.push(nextStop);
+      remainingPoints = remainingPoints.filter(p => p !== nextStop);
+
+      if (currentTruckLoad === this.truckCapacity) {
+        const returnTrip = this.findShortestPath(nextStop, dumpSite);
+        totalDistance += returnTrip.distance;
+        route.push(dumpSite);
+        currentTruckLoad = 0;
+      }
+    }
+
+    if (currentTruckLoad > 0) {
+      const returnTrip = this.findShortestPath(route[route.length - 1], dumpSite);
+      totalDistance += returnTrip.distance;
+      route.push(dumpSite);
+    }
+
+    return { route, totalDistance };
   }
 
   findShortestPath(startVertex, endVertex) {

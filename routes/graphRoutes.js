@@ -1,6 +1,7 @@
 import express from 'express';
 import GraphService from '../services/graphService.js';
 import collectionPoint from '../models/collectionPoint.js';
+import graphControllers from '../controllers/graphControllers.js';
 
 const router = express.Router();
 const graphService = new GraphService();
@@ -35,5 +36,7 @@ router.get('/shortest-path', async (req, res) => {
         res.status(500).send('Erro ao calcular o caminho mais curto: ' + error.message);
     }
 });
+
+router.get('/optimized-route', graphControllers.findOptimizedRoute);
 
 export default router;
