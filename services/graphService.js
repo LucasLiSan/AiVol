@@ -2,59 +2,59 @@ import mongoose from 'mongoose';
 import CollectionPoint from '../models/collectionPoint.js';
 
 class GraphService {
-  constructor(truckCapacity = 50) {
-    this.graph = { vertices: {} };
-    this.truckCapacity = truckCapacity;
+  constructor() {
+    this.graph = {}
   }
 
   async loadCollectionPoints() {
     const points = await CollectionPoint.find();
-    const MAX_DISTANCE = 0.9; // distância máxima permitida em km
 
-    points.forEach(point => {
-      const vertex = point._id.toString();
-      this.addVertex(vertex, point.latitude, point.longitude, point.volume);
+    // Adiciona os pontos ao grafo
+    points.forEach((point) => {
+        this.addVertex(point._id.toString(), point.latitude, point.longitude);
     });
 
-    for (let i = 0; i < points.length; i++) {
-      for (let j = i + 1; j < points.length; j++) {
-        const point1 = points[i];
-        const point2 = points[j];
-        const distance = this.calculateDistance(
-          point1.latitude,
-          point1.longitude,
-          point2.latitude,
-          point2.longitude
-        );
+    // Conecta os pontos mais próximos
+    points.forEach((pointA) => {
+        points.forEach((pointB) => {
+            if (pointA._id.toString() !== pointB._id.toString()) {
+                this.addEdge(pointA._id.toString(), pointB._id.toString());
+            }
+        });
+    });
+}
 
-        if (distance <= MAX_DISTANCE) { // Conecta apenas pontos próximos
-          this.addEdge(point1._id.toString(), point2._id.toString(), distance);
-          this.addEdge(point2._id.toString(), point1._id.toString(), distance);
-        }
-      }
+  addVertex(id, lat, lon) {
+    if (!this.graph[id]) {
+        this.graph[id] = { lat, lon, edges: {} };
     }
-  }
+}
 
-  addVertex(vertex, lat, lon, volume) {
-    this.graph.vertices[vertex] = { lat, lon, volume, edges: {} };
-  }
+// Método para adicionar uma aresta (conexão entre dois pontos)
+addEdge(id1, id2) {
+    if (!this.graph[id1] || !this.graph[id2]) return;
 
-  addEdge(vertex1, vertex2, distance) {
-    if (this.graph.vertices[vertex1] && this.graph.vertices[vertex2]) {
-      this.graph.vertices[vertex1].edges[vertex2] = distance;
-    }
-  }
+    const { lat: lat1, lon: lon1 } = this.graph[id1];
+    const { lat: lat2, lon: lon2 } = this.graph[id2];
 
-  calculateDistance(lat1, lon1, lat2, lon2) {
+    const distance = this.calculateDistance(lat1, lon1, lat2, lon2);
+
+    this.graph[id1].edges[id2] = distance;
+    this.graph[id2].edges[id1] = distance; // Grafo não-direcionado
+}
+
+calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // Raio da Terra em km
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) ** 2 +
-              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-              Math.sin(dLon / 2) ** 2;
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
-  }
+}
 
   findOptimizedRoute(startVertex, dumpSite) {
     let remainingPoints = Object.keys(this.graph.vertices);
@@ -104,48 +104,46 @@ class GraphService {
     return { route, totalDistance };
   }
 
-  findShortestPath(startVertex, endVertex) {
-    const distances = {};
-    const previous = {};
-    const queue = new Set(Object.keys(this.graph.vertices));
+  findShortestPath(start, end) {
+    if (!this.graph[start] || !this.graph[end]) return null;
 
-    for (const vertex of queue) {
-      distances[vertex] = Infinity;
+    let distances = {};
+    let previous = {};
+    let unvisited = new Set(Object.keys(this.graph));
+
+    for (let node of unvisited) {
+        distances[node] = Infinity;
     }
-    distances[startVertex] = 0;
+    distances[start] = 0;
 
-    while (queue.size > 0) {
-      const currentVertex = [...queue].reduce((a, b) => (distances[a] < distances[b] ? a : b));
-      if (currentVertex === endVertex) break;
-      
-      if (distances[currentVertex] === Infinity) break; // Nenhuma conexão possível a partir daqui
+    while (unvisited.size > 0) {
+        let closestNode = [...unvisited].reduce((a, b) =>
+            distances[a] < distances[b] ? a : b
+        );
 
-      queue.delete(currentVertex);
-      const neighbors = this.graph.vertices[currentVertex].edges;
-
-      for (const neighbor in neighbors) {
-        const alt = distances[currentVertex] + neighbors[neighbor];
-        if (alt < distances[neighbor]) {
-          distances[neighbor] = alt;
-          previous[neighbor] = currentVertex;
+        if (closestNode === end) {
+            let path = [];
+            let current = end;
+            while (current) {
+                path.unshift(current);
+                current = previous[current];
+            }
+            return { path, distance: distances[end] };
         }
-      }
+
+        unvisited.delete(closestNode);
+
+        for (let neighbor in this.graph[closestNode].edges) {
+            let alt = distances[closestNode] + this.graph[closestNode].edges[neighbor];
+            if (alt < distances[neighbor]) {
+                distances[neighbor] = alt;
+                previous[neighbor] = closestNode;
+            }
+        }
     }
 
-    const path = [];
-    let u = endVertex;
-
-    while (u) {
-      path.unshift(u);
-      u = previous[u];
-    }
-
-    if (path.length > 1) {
-      return { path, distance: distances[endVertex] };
-    } else {
-      return null;
-    }
-  }
+    return null;
+}
 }
 
 export default GraphService;

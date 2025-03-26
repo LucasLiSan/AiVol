@@ -33,16 +33,16 @@ const findOptimizedRoute = async (req, res) => {
         const capacity = parseFloat(truckCapacity);
 
         if (!startId || isNaN(capacity)) {
-            return res.status(400).json({ error: 'Parâmetros inválidos. Envie startId e truckCapacity.' });
+            return res.status(400).json({ error: "Parâmetros inválidos. Envie startId e truckCapacity." });
         }
 
         // Carregar pontos de coleta do banco
         const points = await CollectionPoint.find();
-        
+
         // Ordenar pontos por proximidade ao ponto de partida
         const sortedPoints = points.sort((a, b) => {
-            const distA = graphService.calculateDistance(startId, a._id.toString());
-            const distB = graphService.calculateDistance(startId, b._id.toString());
+            const distA = graphService.findShortestPath(startId, a._id.toString())?.distance || Infinity;
+            const distB = graphService.findShortestPath(startId, b._id.toString())?.distance || Infinity;
             return distA - distB;
         });
 
@@ -50,42 +50,51 @@ const findOptimizedRoute = async (req, res) => {
         let route = [];
         let totalDistance = 0;
         let trips = [];
+        let lastPoint = startId;
 
         for (const point of sortedPoints) {
             let volumeToCollect = point.volume - point.collectedVolume;
 
-            if (volumeToCollect <= 0) continue; // Ponto já coletado
+            if (volumeToCollect <= 0) continue;
 
-            if (volumeToCollect <= remainingCapacity) {
-                // Adicionar à rota atual se houver espaço suficiente
-                route.push(point._id.toString());
-                remainingCapacity -= volumeToCollect;
-            } else {
-                // Criar uma nova viagem se o caminhão estiver cheio
-                if (route.length > 0) {
+            while (volumeToCollect > 0) {
+                let collectedNow = Math.min(volumeToCollect, remainingCapacity);
+
+                if (collectedNow === 0) {
                     trips.push({ route: [...route], totalDistance });
+                    route = [];
+                    totalDistance = 0;
+                    remainingCapacity = capacity;
+                    lastPoint = startId;
                 }
-                // Reiniciar a rota
-                route = [point._id.toString()];
-                remainingCapacity = capacity - volumeToCollect;
-            }
 
-            // Atualizar distância total (considerando melhor rota entre pontos)
-            if (route.length > 1) {
-                const lastPoint = route[route.length - 2];
-                const distance = graphService.findShortestPath(lastPoint, point._id.toString())?.distance || 0;
-                totalDistance += distance;
+                route.push(point._id.toString());
+                remainingCapacity -= collectedNow;
+                volumeToCollect -= collectedNow;
+
+                if (route.length > 1) {
+                    const previousPoint = route[route.length - 2];
+                    const pathData = graphService.findShortestPath(previousPoint, point._id.toString());
+
+                    if (pathData) {
+                        totalDistance += pathData.distance;
+                    }
+                }
+
+                await CollectionPoint.updateOne(
+                    { _id: point._id },
+                    { $inc: { collectedVolume: collectedNow } }
+                );
             }
         }
 
-        // Adicionar última viagem
         if (route.length > 0) {
             trips.push({ route, totalDistance });
         }
 
         res.status(200).json({ trips });
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao calcular a rota otimizada: ' + error.message });
+        res.status(500).json({ error: "Erro ao calcular a rota otimizada: " + error.message });
     }
 };
 
