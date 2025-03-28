@@ -6,7 +6,7 @@ const graphService = new GraphService();
 // Adicionar um novo ponto de coleta
 const addPoint = (req, res) => {
     const { point } = req.body;
-    graphService.addNode(point);
+    graphService.addVertex(point);
     res.status(201).json({ success: `Ponto ${point} adicionado com sucesso.` });
 };
 
@@ -21,9 +21,8 @@ const addRoute = (req, res) => {
 const findRoute = (req, res) => {
     const { start, end } = req.query;
     const result = graphService.findShortestPath(start, end);
-    if (result) {
-        res.status(200).json(result);
-    } else { res.status(404).json({ error: 'Caminho não encontrado.' }); }
+    if (result) { res.status(200).json(result); }
+    else { res.status(404).json({ error: 'Caminho não encontrado.' }); }
 };
 
 // Otimizar rota com base na capacidade do caminhão
@@ -31,10 +30,7 @@ const findOptimizedRoute = async (req, res) => {
     try {
         const { startId, truckCapacity } = req.query;
         const capacity = parseFloat(truckCapacity);
-
-        if (!startId || isNaN(capacity)) {
-            return res.status(400).json({ error: "Parâmetros inválidos. Envie startId e truckCapacity." });
-        }
+        if (!startId || isNaN(capacity)) { return res.status(400).json({ error: "Parâmetros inválidos. Envie startId e truckCapacity." }); }
 
         // Carregar pontos de coleta do banco
         const points = await CollectionPoint.find();
@@ -54,12 +50,11 @@ const findOptimizedRoute = async (req, res) => {
 
         for (const point of sortedPoints) {
             let volumeToCollect = point.volume - point.collectedVolume;
-
             if (volumeToCollect <= 0) continue;
 
             while (volumeToCollect > 0) {
                 let collectedNow = Math.min(volumeToCollect, remainingCapacity);
-
+                
                 if (collectedNow === 0) {
                     trips.push({ route: [...route], totalDistance });
                     route = [];
@@ -67,35 +62,33 @@ const findOptimizedRoute = async (req, res) => {
                     remainingCapacity = capacity;
                     lastPoint = startId;
                 }
-
-                route.push(point._id.toString());
+            
+                // Atualiza `collectedVolume` antes de adicionar na rota
+                point.collectedVolume += collectedNow;
+            
+                route.push(
+                    `Endereço: ${point.address.toString()} Volume agendado: ${point.volume}, Volume retirado: ${point.collectedVolume}`
+                );
+            
                 remainingCapacity -= collectedNow;
                 volumeToCollect -= collectedNow;
-
+            
                 if (route.length > 1) {
                     const previousPoint = route[route.length - 2];
                     const pathData = graphService.findShortestPath(previousPoint, point._id.toString());
-
-                    if (pathData) {
-                        totalDistance += pathData.distance;
-                    }
+                    if (pathData) { totalDistance += pathData.distance; }
                 }
-
+            
+                // Atualiza no banco de dados
                 await CollectionPoint.updateOne(
                     { _id: point._id },
-                    { $inc: { collectedVolume: collectedNow } }
+                    { $set: { collectedVolume: point.collectedVolume } }
                 );
             }
         }
-
-        if (route.length > 0) {
-            trips.push({ route, totalDistance });
-        }
-
+        if (route.length > 0) { trips.push({ route, totalDistance }); }
         res.status(200).json({ trips });
-    } catch (error) {
-        res.status(500).json({ error: "Erro ao calcular a rota otimizada: " + error.message });
-    }
+    } catch (error) { res.status(500).json({ error: "Erro ao calcular a rota otimizada: " + error.message }); }
 };
 
 export default {
