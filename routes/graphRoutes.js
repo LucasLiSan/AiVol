@@ -4,12 +4,11 @@ import CollectionPoint from '../models/collectionPoint.js';
 import graphControllers from '../controllers/graphControllers.js';
 
 const router = express.Router();
-const graphService = new GraphService();
 
 // Carregar os pontos de coleta no grafo
 router.get('/load-points', async (req, res) => {
     try {
-        await graphService.loadCollectionPoints();
+        await GraphService.loadCollectionPoints();
         const points = await CollectionPoint.find({}, 'address');
         const addresses = points.map(point => point.address);
         res.status(200).json({ message: 'Pontos de coleta carregados no grafo com sucesso.', addresses: addresses });
@@ -20,7 +19,7 @@ router.get('/load-points', async (req, res) => {
 router.get('/shortest-path', async (req, res) => {
     const { startId, endId } = req.query;
     try {
-        const result = graphService.findShortestPath(startId, endId);
+        const result = GraphService.findShortestPath(startId, endId);
         if (result) { res.status(200).json(result); } // Agora retorna a rota e a distância total
         else { res.status(404).send('Caminho não encontrado.'); }
     } catch (error) { res.status(500).send('Erro ao calcular o caminho mais curto: ' + error.message); }

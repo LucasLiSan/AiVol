@@ -18,11 +18,19 @@ const getAllCollectionPoints = async (req, res) => {
 const getOneCollectionPoint = async (req, res) => {
     try {
         const collectionPoint = await collectionService.getOne(req.params.id);
-        if(!collectionPoint) {
+        if (!collectionPoint) {
             return res.status(404).json({ error: `Ponto de coleta não encontrado` });
-        } else { res.status(200).json(collectionPoint); }
-    } catch (error) { res.status(500).json({ error: `Erro ao buscar o ponto de coleta` }); }
-}
+        } else {
+            res.status(200).json({
+                ...collectionPoint.toObject(),
+                history: collectionPoint.collectionHistory,
+                collectedDateTime: collectionPoint.collectedDateTime
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ error: `Erro ao buscar o ponto de coleta` });
+    }
+};
 
 const updateCollectionPoint = async (req, res) => {
     try {
