@@ -1,26 +1,29 @@
 import GraphService from '../services/graphService.js';
 import CollectionPoint from '../models/collectionPoint.js';
 
+const graphService = new GraphService();
+
 // Adicionar um novo ponto de coleta
 const addPoint = (req, res) => {
     const { point } = req.body;
-    GraphService.addVertex(point);
+    graphService.addNode(point);
     res.status(201).json({ success: `Ponto ${point} adicionado com sucesso.` });
 };
 
 // Adicionar uma conexão entre pontos de coleta
 const addRoute = (req, res) => {
     const { origin, destination, weight } = req.body;
-    GraphService.addEdge(origin, destination, parseFloat(weight));
+    graphService.addEdge(origin, destination, parseFloat(weight));
     res.status(201).json({ success: `Rota entre ${origin} e ${destination} adicionada com sucesso.` });
 };
 
 // Calcular o melhor caminho entre dois pontos
 const findRoute = (req, res) => {
     const { start, end } = req.query;
-    const result = GraphService.findShortestPath(start, end);
-    if (result) { res.status(200).json(result); }
-    else { res.status(404).json({ error: 'Caminho não encontrado.' }); }
+    const result = graphService.findShortestPath(start, end);
+    if (result) {
+        res.status(200).json(result);
+    } else { res.status(404).json({ error: 'Caminho não encontrado.' }); }
 };
 
 // Otimizar rota com base na capacidade do caminhão
@@ -28,14 +31,18 @@ const findOptimizedRoute = async (req, res) => {
     try {
         const { startId, truckCapacity } = req.query;
         const capacity = parseFloat(truckCapacity);
+
         if (!startId || isNaN(capacity)) {
             return res.status(400).json({ error: "Parâmetros inválidos. Envie startId e truckCapacity." });
         }
 
+        // Carregar pontos de coleta do banco
         const points = await CollectionPoint.find();
+
+        // Ordenar pontos por proximidade ao ponto de partida
         const sortedPoints = points.sort((a, b) => {
-            const distA = GraphService.findShortestPath(startId, a._id.toString())?.distance || Infinity;
-            const distB = GraphService.findShortestPath(startId, b._id.toString())?.distance || Infinity;
+            const distA = graphService.findShortestPath(startId, a._id.toString())?.distance || Infinity;
+            const distB = graphService.findShortestPath(startId, b._id.toString())?.distance || Infinity;
             return distA - distB;
         });
 
@@ -46,66 +53,65 @@ const findOptimizedRoute = async (req, res) => {
         let lastPoint = startId;
 
         for (const point of sortedPoints) {
-            let volumeToCollect = point.volume - point.collectedVolume;
+            let volumeToCollect = point.volume; // Agora pega o volume atualizado do banco
+
             if (volumeToCollect <= 0) continue;
 
             while (volumeToCollect > 0) {
                 let collectedNow = Math.min(volumeToCollect, remainingCapacity);
-
-                if (collectedNow === 0) {
+            
+                if (remainingCapacity === 0) {
                     trips.push({ route: [...route], totalDistance });
                     route = [];
                     totalDistance = 0;
                     remainingCapacity = capacity;
                     lastPoint = startId;
                 }
-
-                // Atualiza o volume coletado e salva no histórico
-                point.collectedVolume += collectedNow;
-                point.collectionHistory.push({
-                    collectedVolume: collectedNow,
-                    collectedAt: new Date()
-                });
-
-                // Se todo o volume foi retirado, definir a data da coleta concluída
-                if (point.collectedVolume >= point.volume) {
-                    point.collectedDateTime = new Date();
-                }
-
-                route.push(
-                    `Endereço: ${point.address.toString()}, Volume agendado: ${point.volume}, Volume retirado: ${point.collectedVolume}`
-                );
-
-                remainingCapacity -= collectedNow;
-                volumeToCollect -= collectedNow;
-
-                if (route.length > 1) {
-                    const previousPoint = route[route.length - 2];
-                    const pathData = GraphService.findShortestPath(previousPoint, point._id.toString());
-                    if (pathData) {
-                        totalDistance += pathData.distance;
+            
+                if (collectedNow > 0) {
+                    point.collectedVolume += collectedNow;
+                    volumeToCollect -= collectedNow;
+            
+                    // Atualiza o volume do ponto corretamente
+                    point.volume -= collectedNow;
+                    let remainingVolume = Math.max(0, point.volume); // Garante que não fique negativo
+            
+                    route.push(
+                        `Endereço: ${point.address} Volume agendado: ${remainingVolume}, coletado: ${collectedNow}`
+                    );
+            
+                    remainingCapacity -= collectedNow;
+            
+                    if (route.length > 1) {
+                        const previousPointId = sortedPoints.find(p => p.address === route[route.length - 2].split(" ")[1])?._id.toString();
+                        if (previousPointId) {
+                            const pathData = graphService.findShortestPath(previousPointId, point._id.toString());
+                            if (pathData) {
+                                totalDistance += pathData.distance;
+                            }
+                        }
                     }
+            
+                    // **Atualiza o banco corretamente**
+                    await CollectionPoint.updateOne(
+                        { _id: point._id },
+                        { 
+                            $set: {
+                                volume: remainingVolume, // Agora realmente diminui no banco
+                                collectedVolume: point.collectedVolume,
+                                collectedDateTime: new Date()
+                            },
+                            $push: { collectionHistory: { collectedVolume: collectedNow, collectedAt: new Date() } }
+                        }
+                    );
                 }
-
-                // Atualiza no banco de dados
-                await CollectionPoint.updateOne(
-                    { _id: point._id },
-                    { 
-                        $set: {
-                            volume: point.volume - point.collectedVolume,
-                            collectedVolume: point.collectedVolume - collectedNow,
-                            collectedDateTime: point.collectedDateTime
-                        },
-                        $push: { collectionHistory: { collectedVolume: collectedNow, collectedAt: new Date() } }
-                    }
-                );
             }
+            
         }
 
         if (route.length > 0) {
-            trips.push({ route, totalDistance });
+            trips.push({ route: [...route], totalDistance });
         }
-
         res.status(200).json({ trips });
     } catch (error) {
         res.status(500).json({ error: "Erro ao calcular a rota otimizada: " + error.message });

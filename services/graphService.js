@@ -1,88 +1,135 @@
 import mongoose from 'mongoose';
 import CollectionPoint from '../models/collectionPoint.js';
-import { MinPriorityQueue } from '@datastructures-js/priority-queue';
 
 class GraphService {
-  constructor() {
-    this.graph = {};
-  }
-
-  addVertex(id, volume = 0) {
-    if (!this.graph[id]) {
-      this.graph[id] = { edges: {}, volume };
+    constructor() {
+        this.graph = {}
     }
-  }
 
-  addEdge(id1, id2, weight) {
-    if (!this.graph[id1] || !this.graph[id2]) return;
-    this.graph[id1].edges[id2] = weight;
-    this.graph[id2].edges[id1] = weight;
-  }
+    async loadCollectionPoints() {
+        const points = await CollectionPoint.find();
 
-  findShortestPath(start, end) {
-    const distances = {};
-    const prev = {};
-    const pq = new MinPriorityQueue();
-    
-    Object.keys(this.graph).forEach(v => {
-      distances[v] = v === start ? 0 : Infinity;
-      pq.enqueue(v, distances[v]);
-    });
+        // Adiciona os pontos ao grafo
+        points.forEach((point) => { this.addVertex(point._id.toString(), point.latitude, point.longitude); });
 
-    while (!pq.isEmpty()) {
-      let { element: current } = pq.dequeue();
-      if (current === end) break;
-      
-      for (const neighbor in this.graph[current].edges) {
-        const newDist = distances[current] + this.graph[current].edges[neighbor];
-        if (newDist < distances[neighbor]) {
-          distances[neighbor] = newDist;
-          prev[neighbor] = current;
-          pq.enqueue(neighbor, newDist);
+        // Conecta os pontos mais próximos
+        points.forEach((pointA) => {
+            points.forEach((pointB) => {
+                if (pointA._id.toString() !== pointB._id.toString()) {
+                    this.addEdge(pointA._id.toString(), pointB._id.toString());
+                }
+            });
+        });
+    }
+
+    addVertex(id, lat, lon) {
+        if (!this.graph[id]) { this.graph[id] = { lat, lon, edges: {} }; }
+    }
+
+// Método para adicionar uma aresta (conexão entre dois pontos)
+    addEdge(id1, id2) {
+        if (!this.graph[id1] || !this.graph[id2]) return;
+
+        const { lat: lat1, lon: lon1 } = this.graph[id1];
+        const { lat: lat2, lon: lon2 } = this.graph[id2];
+
+        const distance = this.calculateDistance(lat1, lon1, lat2, lon2);
+
+        this.graph[id1].edges[id2] = distance;
+        this.graph[id2].edges[id1] = distance; // Grafo não-direcionado
+    }
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Raio da Terra em km
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    findOptimizedRoute(startVertex, dumpSite) {
+        let remainingPoints = Object.keys(this.graph.vertices);
+        let currentTruckLoad = 0;
+        let totalDistance = 0;
+        let route = [startVertex];
+
+        while (remainingPoints.length > 0) {
+            let nextStop = null;
+            let shortestDistance = Infinity;
+
+            for (let point of remainingPoints) {
+                if (this.graph.vertices[point].volume > 0) {
+                    const result = this.findShortestPath(startVertex, point);
+                    if (result && result.distance < shortestDistance) {
+                        shortestDistance = result.distance;
+                        nextStop = point;
+                    }
+                }
+            }
+            if (!nextStop) break;
+            let availableVolume = this.graph.vertices[nextStop].volume;
+            let canCarry = Math.min(availableVolume, this.truckCapacity - currentTruckLoad);
+            this.graph.vertices[nextStop].volume -= canCarry;
+            currentTruckLoad += canCarry;
+            totalDistance += shortestDistance;
+            route.push(nextStop);
+            remainingPoints = remainingPoints.filter(p => p !== nextStop);
+
+            if (currentTruckLoad === this.truckCapacity) {
+                const returnTrip = this.findShortestPath(nextStop, dumpSite);
+                totalDistance += returnTrip.distance;
+                route.push(dumpSite);
+                currentTruckLoad = 0;
+            }
         }
-      }
-    }
-    
-    const path = [];
-    let step = end;
-    while (step) {
-      path.unshift(step);
-      step = prev[step];
-    }
-    return path[0] === start ? path : [];
-  }
 
-  async findOptimizedRoute(start, maxCapacity) {
-    let currentVolume = 0;
-    let path = [start];
-    let visited = new Set();
-    let current = start;
-    
-    while (true) {
-      let nextPoint = null;
-      let shortestDist = Infinity;
-
-      for (const neighbor in this.graph[current].edges) {
-        if (!visited.has(neighbor) && this.graph[neighbor].volume > 0) {
-          const dist = this.graph[current].edges[neighbor];
-          if (dist < shortestDist) {
-            nextPoint = neighbor;
-            shortestDist = dist;
-          }
+        if (currentTruckLoad > 0) {
+            const returnTrip = this.findShortestPath(route[route.length - 1], dumpSite);
+            totalDistance += returnTrip.distance;
+            route.push(dumpSite);
         }
-      }
 
-      if (!nextPoint || currentVolume + this.graph[nextPoint].volume > maxCapacity) {
-        break;
-      }
-
-      visited.add(nextPoint);
-      currentVolume += this.graph[nextPoint].volume;
-      path.push(nextPoint);
-      current = nextPoint;
+        return { route, totalDistance };
     }
-    return path;
-  }
+
+    findShortestPath(start, end) {
+        if (!this.graph[start] || !this.graph[end]) return null;
+
+        let distances = {};
+        let previous = {};
+        let unvisited = new Set(Object.keys(this.graph));
+
+        for (let node of unvisited) {
+            distances[node] = Infinity;
+        }
+        distances[start] = 0;
+
+        while (unvisited.size > 0) {
+            let closestNode = [...unvisited].reduce((a, b) => distances[a] < distances[b] ? a : b);
+            if (closestNode === end) {
+                let path = [];
+                let current = end;
+                while (current) {
+                    path.unshift(current);
+                    current = previous[current];
+                }
+                return { path, distance: distances[end] };
+            }
+
+            unvisited.delete(closestNode);
+
+            for (let neighbor in this.graph[closestNode].edges) {
+                let alt = distances[closestNode] + this.graph[closestNode].edges[neighbor];
+                if (alt < distances[neighbor]) {
+                    distances[neighbor] = alt;
+                    previous[neighbor] = closestNode;
+                }
+            }
+        }
+
+        return null;
+    }
 }
 
-export default new GraphService();
+export default GraphService;
