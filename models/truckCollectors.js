@@ -7,7 +7,7 @@ const truckCollectorsSchema = new mongoose.Schema ({
     kmPerLiter: Number, //km por litro do caminhão
     routeStatus: { 
         type: String, 
-        enum: ["EM ROTA", "DESCARREGANDO", "CARREGANDO", "PARADO", "FORA DE SERVIÇO"], 
+        enum: ["EM ROTA", "DESCARREGANDO", "CARREGANDO", "PARADO", "FORA DE SERVIÇO", "ABASTECENDO"], 
         default: "PARADO" 
     },
     loadStatus: { 

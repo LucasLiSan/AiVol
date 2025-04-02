@@ -4,6 +4,7 @@ import bodyParser from "body-parser";
 import collectionPointRoutes from "./routes/collectionRoutes.js";
 import graphRoutes from "./routes/graphRoutes.js";
 import truckCollectorRoutes from "./routes/truckCollectorsRoutes.js";
+import truckFixedPointsRoutes from "./routes/truckFixedPointsRoutes.js";
 
 //mongoose.connect("mongodb://127.0.0.1:27017/api-aiVol");
 
@@ -21,6 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use('/', collectionPointRoutes);
 app.use('/', truckCollectorRoutes);
+app.use('/', truckFixedPointsRoutes);
 app.use('/graph', graphRoutes);
 
 /* ----------\/ INICIANDO SERVIDOR \/---------- 
