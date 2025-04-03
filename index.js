@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import bodyParser from "body-parser";
+import axios from "axios";
 import collectionPointRoutes from "./routes/collectionRoutes.js";
 import graphRoutes from "./routes/graphRoutes.js";
 import truckCollectorRoutes from "./routes/truckCollectorsRoutes.js";
