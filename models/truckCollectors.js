@@ -25,7 +25,23 @@ const truckCollectorsSchema = new mongoose.Schema ({
             type: [Number], 
             required: true
         }
-    } // localização do caminhão
+    }, // localização do caminhão
+    currentLoad: {
+        type: Number,
+        default: 0
+      },
+      history: [{
+        timestamp: { type: Date, default: Date.now },
+        collected: Number,
+        location: {
+          type: {
+            type: String,
+            enum: ["Point"],
+            default: "Point"
+          },
+          coordinates: [Number]
+        }
+      }]
 });
 
 truckCollectorsSchema.index({ location: "2dsphere" });

@@ -10,7 +10,7 @@ class GraphService {
         const points = await CollectionPoint.find();
 
         // Adiciona os pontos ao grafo
-        points.forEach((point) => { this.addVertex(point._id.toString(), point.latitude, point.longitude); });
+        points.forEach((point) => { this.addVertex(point._id.toString(), point.latitude, point.longitude, point.volume); });
 
         // Conecta os pontos mais próximos
         points.forEach((pointA) => {
@@ -22,8 +22,8 @@ class GraphService {
         });
     }
 
-    addVertex(id, lat, lon) {
-        if (!this.graph[id]) { this.graph[id] = { lat, lon, edges: {} }; }
+    addVertex(id, lat, lon, volume = 0) {
+        if (!this.graph[id]) { this.graph[id] = { lat, lon, volume, edges: {} }; }
     }
 
 // Método para adicionar uma aresta (conexão entre dois pontos)
