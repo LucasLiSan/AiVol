@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import CollectionPoint from '../models/collectionPoint.js';
+import FixedPoint from "../models/truckFixedPoints.js";
 
 class GraphService {
     constructor() {
@@ -10,7 +11,10 @@ class GraphService {
         const points = await CollectionPoint.find();
 
         // Adiciona os pontos ao grafo
-        points.forEach((point) => { this.addVertex(point._id.toString(), point.latitude, point.longitude); });
+        points.forEach((point) => {
+            const [lon, lat] = point.location.coordinates;
+            this.addVertex(point._id.toString(), lat, lon);
+        });
 
         // Conecta os pontos mais próximos
         points.forEach((pointA) => {
@@ -20,13 +24,38 @@ class GraphService {
                 }
             });
         });
+
+        await this.loadFixedPoints();
+    }
+
+    async loadFixedPoints() {
+        const fixedPoints = await FixedPoint.find();
+    
+        // Adiciona os pontos fixos (garagem, descarte) ao grafo
+        fixedPoints.forEach((point) => {
+            const [lon, lat] = point.location.coordinates;
+            this.addVertex(point._id.toString(), lat, lon);
+        });
+    
+        // Conecta todos os pontos fixos entre si
+        for (let i = 0; i < fixedPoints.length; i++) {
+            for (let j = i + 1; j < fixedPoints.length; j++) {
+                const id1 = fixedPoints[i]._id.toString();
+                const id2 = fixedPoints[j]._id.toString();
+                this.addEdge(id1, id2);
+            }
+        }
+    }
+
+    getAllNodes() {
+        return this.graph;
     }
 
     addVertex(id, lat, lon) {
         if (!this.graph[id]) { this.graph[id] = { lat, lon, edges: {} }; }
     }
 
-// Método para adicionar uma aresta (conexão entre dois pontos)
+    // Método para adicionar uma aresta (conexão entre dois pontos)
     addEdge(id1, id2) {
         if (!this.graph[id1] || !this.graph[id2]) return;
 

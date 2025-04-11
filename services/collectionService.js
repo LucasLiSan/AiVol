@@ -4,6 +4,10 @@ import collectionPoint from "../models/collectionPoint.js";
 class CollectionService {
     async create(data) {
         try {
+            data.location = {
+                type: "Point",
+                coordinates: [data.longitude, data.latitude]
+            };
             const newPoint = new collectionPoint(data);
             await newPoint.save();
             return newPoint;
@@ -24,6 +28,12 @@ class CollectionService {
 
     async update(id, data) {
         try {
+            if (data.longitude !== undefined && data.latitude !== undefined) {
+                data.location = {
+                    type: "Point",
+                    coordinates: [data.longitude, data.latitude]
+                };
+            }
             return await collectionPoint.findByIdAndUpdate(id, data);
         } catch(error) { console.log(error); }
     }
