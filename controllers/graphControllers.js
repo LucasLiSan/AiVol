@@ -1,6 +1,7 @@
 import GraphService from '../services/graphService.js';
 import CollectionPoint from '../models/collectionPoint.js';
 import TruckCollector from "../models/truckCollectors.js";
+import truckFixedPoints from '../models/truckFixedPoints.js';
 
 const graphService = new GraphService();
 
@@ -30,6 +31,8 @@ const findRoute = (req, res) => {
 // Otimizar rota com base na capacidade do caminhão
 const findOptimizedRoute = async (req, res) => {
     try {
+        await graphService.loadCollectionPoints();
+
         const { truckId } = req.query;
 
         if (!truckId) {
@@ -41,6 +44,11 @@ const findOptimizedRoute = async (req, res) => {
             return res.status(404).json({ error: "Caminhão não encontrado." });
         }
 
+        const capacity = truck.capacity;
+        if (!capacity || capacity <= 0) {
+            return res.status(400).json({ error: "Capacidade do caminhão inválida ou não definida." });
+        }
+
         console.log("📦 Caminhão encontrado:");
         console.log(`ID: ${truck._id}`);
         console.log(`Localização: ${truck.location?.coordinates}`);
@@ -48,7 +56,7 @@ const findOptimizedRoute = async (req, res) => {
         const [truckLon, truckLat] = truck.location.coordinates;
 
         let closestNodeId = null;
-        let minDistance = 0.6;
+        let minDistance = Infinity;
 
         console.log("\n🌐 Iniciando busca pelo ponto mais próximo no grafo...");
         for (const nodeId in graphService.graph) {
@@ -71,12 +79,12 @@ const findOptimizedRoute = async (req, res) => {
 
         console.log(`✅ Ponto mais próximo encontrado: ${closestNodeId} (distância: ${minDistance.toFixed(4)} km)`);
 
-
         const startId = closestNodeId;
         if (!startId) { return res.status(400).json({ error: "Nenhum ponto inicial encontrado próximo ao caminhão." }); }
 
         // Carregar pontos de coleta do banco
         const points = await CollectionPoint.find();
+        const fixedPoints = await truckFixedPoints.find();
 
         // Ordenar pontos por proximidade ao ponto de partida
         const sortedPoints = points.sort((a, b) => {
@@ -112,7 +120,7 @@ const findOptimizedRoute = async (req, res) => {
             
                     // Atualiza o volume do ponto corretamente
                     point.volume -= collectedNow;
-                    let remainingVolume = Math.max(0, point.volume); // Garante que não fique negativo
+                    const remainingVolume = Math.max(0, point.volume); // Garante que não fique negativo
             
                     route.push(
                         `Endereço: ${point.address} Volume agendado: ${remainingVolume}, coletado: ${collectedNow}`
@@ -121,6 +129,9 @@ const findOptimizedRoute = async (req, res) => {
                     const pathData = graphService.findShortestPath(lastPoint, point._id.toString());
                     if (pathData) {
                         totalDistance += pathData.distance;
+                        console.log('Distância somada:', pathData.distance)
+                    } else {
+                        console.log(`⚠️ Caminho não encontrado entre ${lastPoint} e ${point._id.toString()}`);
                     }
 
                     lastPoint = point._id.toString();
@@ -142,7 +153,7 @@ const findOptimizedRoute = async (req, res) => {
         }
 
         if (route.length > 0) {
-            trips.push({ route: [...route], totalDistance });
+            trips.push({ route: [...route], totalDistance: Number(totalDistance.toFixed(3)) });
         }
 
         res.status(200).json({ trips });

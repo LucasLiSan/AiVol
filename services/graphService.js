@@ -26,6 +26,11 @@ class GraphService {
         });
 
         await this.loadFixedPoints();
+
+        console.log("📊 Total de nós no grafo após carregamento:", Object.keys(this.graph).length);
+        for (const nodeId in this.graph) {
+            console.log(`🔹 Nó ${nodeId}: (${this.graph[nodeId].lat}, ${this.graph[nodeId].lon})`);
+        }
     }
 
     async loadFixedPoints() {
@@ -33,7 +38,7 @@ class GraphService {
     
         // Adiciona os pontos fixos (garagem, descarte) ao grafo
         fixedPoints.forEach((point) => {
-            const [lon, lat] = point.location.coordinates;
+            const [lat, lon] = point.location.coordinates;
             this.addVertex(point._id.toString(), lat, lon);
         });
     
