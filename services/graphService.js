@@ -8,28 +8,40 @@ class GraphService {
     }
 
     async loadCollectionPoints() {
-        const points = await CollectionPoint.find();
+        this.graph = {};
 
-        // Adiciona os pontos ao grafo
-        points.forEach((point) => {
-            const [lon, lat] = point.location.coordinates;
-            this.addVertex(point._id.toString(), lat, lon);
+        const collectionPoints  = await CollectionPoint.find();
+        const fixedPoints = await FixedPoint.find();
+
+        // 1. Adiciona todos os pontos de coleta como vértices
+        collectionPoints.forEach((point) => {
+            const [lng, lat] = point.location.coordinates;
+            this.addVertex(point._id.toString(), lat, lng);
         });
 
-        // Conecta os pontos mais próximos
-        points.forEach((pointA) => {
-            points.forEach((pointB) => {
-                if (pointA._id.toString() !== pointB._id.toString()) {
-                    this.addEdge(pointA._id.toString(), pointB._id.toString());
-                }
-            });
+        // 2. Adiciona todos os pontos fixos (garagem, descarte)
+        fixedPoints.forEach((point) => {
+            const [lng, lat] = point.location.coordinates;
+            this.addVertex(point._id.toString(), lat, lng);
         });
 
-        await this.loadFixedPoints();
+        const allPoints = [...collectionPoints, ...fixedPoints];
 
+        // 3. Conecta todos os pontos entre si (grafo não-direcionado)
+        for (let i = 0; i < allPoints.length; i++) {
+            for (let j = i + 1; j < allPoints.length; j++) {
+                const id1 = allPoints[i]._id.toString();
+                const id2 = allPoints[j]._id.toString();
+                this.addEdge(id1, id2); // cria aresta bidirecional
+            }
+        }
+
+        // 4. Log de verificação
         console.log("📊 Total de nós no grafo após carregamento:", Object.keys(this.graph).length);
         for (const nodeId in this.graph) {
-            console.log(`🔹 Nó ${nodeId}: (${this.graph[nodeId].lat}, ${this.graph[nodeId].lon})`);
+            const node = this.graph[nodeId];
+            const edgeCount = Object.keys(node.edges).length;
+            console.log(`🔹 Nó ${nodeId} tem ${edgeCount} conexões.`);
         }
     }
 
@@ -71,6 +83,8 @@ class GraphService {
 
         this.graph[id1].edges[id2] = distance;
         this.graph[id2].edges[id1] = distance; // Grafo não-direcionado
+
+        console.log(`🔗 Conectado ${id1} <-> ${id2} (${distance.toFixed(3)} km)`);
     }
 
     calculateDistance(lat1, lon1, lat2, lon2) {
